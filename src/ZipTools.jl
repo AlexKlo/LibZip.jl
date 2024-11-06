@@ -173,7 +173,13 @@ function init_source(data::AbstractVector{UInt8}, freep::Int = 0)
     err = LibZipErrorT()
     err_ptr = Ptr{LibZipErrorT}(pointer_from_objref(err))
     libzip_error_init(err_ptr)
-    ptr = libzip_source_buffer_create(data, length(data), freep, err_ptr)
+
+    data_len = length(data)
+    data_ptr = Libc.malloc(data_len)
+    data_ptr == C_NULL && throw(OutOfMemoryError())
+    GC.@preserve data unsafe_copyto!(Ptr{UInt8}(data_ptr), pointer(data), data_len)
+    ptr = libzip_source_buffer_create(data_ptr, data_len, freep, err_ptr)
+    
     ptr == C_NULL && throw(ZipError(err_ptr))
     zip_error_fini(err_ptr)
     return ptr
