@@ -169,7 +169,7 @@ mutable struct ZipArchive
     archive_ptr::Ptr{LibZipT}
     source_ptr::Ptr{LibZipSourceT}
     comment::String
-    source_data::Vector{Vector{UInt8}}
+    source_data::Union{Nothing,Vector{Vector{UInt8}}}
     closed::Bool
 
     function ZipArchive(archive_ptr::Ptr{LibZipT}, source_ptr::Ptr{LibZipSourceT} = C_NULL)
@@ -327,7 +327,7 @@ function Base.close(zip::ZipArchive)
     if isopen(zip)
         status = libzip_close(zip.archive_ptr)
         iszero(status) || throw(ZipError(zip_error_code(zip)))
-        empty!(zip.source_data)
+        zip.source_data = nothing
         zip.closed = true
     end
 end
@@ -341,7 +341,7 @@ function zip_discard(zip::ZipArchive)
     if isopen(zip)
         libzip_source_free(zip.source_ptr)
         libzip_discard(zip.archive_ptr)
-        empty!(zip.source_data)
+        zip.source_data = nothing
         zip.closed = true
     end
 end
