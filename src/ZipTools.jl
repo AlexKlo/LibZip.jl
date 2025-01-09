@@ -325,6 +325,7 @@ Commit changes and close a `zip` archive instance.
 """
 function Base.close(zip::ZipArchive)
     if isopen(zip)
+        libzip_source_free(zip.source_ptr)
         status = libzip_close(zip.archive_ptr)
         iszero(status) || throw(ZipError(zip_error_code(zip)))
         zip.source_data = nothing
@@ -531,17 +532,25 @@ Read binary data and then close the `zip` archive.
 """
 function Base.read!(zip::ZipArchive)
     @assert isopen(zip) "ZipArchive is closed."
-    close(zip)
-    info = LibZipStatT()
-    info_ptr = pointer_from_objref(info)
-    libzip_stat_init(info_ptr)
-    libzip_source_stat(zip.source_ptr, info_ptr) < 0 && throw(ZipError(source_error_code(zip)))
-    libzip_source_open(zip.source_ptr) < 0 && throw(ZipError(source_error_code(zip)))
-    len = info.size
-    buffer = Vector{UInt8}(undef, len)
-    libzip_source_read(zip.source_ptr, buffer, len) < 0 && throw(ZipError(source_error_code(zip)))
-    libzip_source_close(zip.source_ptr)
-    return buffer
+    try
+        status = libzip_close(zip.archive_ptr)
+        iszero(status) || throw(ZipError(zip_error_code(zip)))
+        
+        info = LibZipStatT()
+        info_ptr = pointer_from_objref(info)
+        libzip_stat_init(info_ptr)
+        libzip_source_stat(zip.source_ptr, info_ptr) < 0 && throw(ZipError(source_error_code(zip)))
+        libzip_source_open(zip.source_ptr) < 0 && throw(ZipError(source_error_code(zip)))
+        len = info.size
+        buffer = Vector{UInt8}(undef, len)
+        libzip_source_read(zip.source_ptr, buffer, len) < 0 && throw(ZipError(source_error_code(zip)))
+        return buffer
+    finally
+        libzip_source_close(zip.source_ptr)
+        libzip_source_free(zip.source_ptr)
+        zip.source_data = nothing
+        zip.closed = true
+    end
 end
 
 """
